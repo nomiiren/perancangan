@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Implementasi BFS dan DFS pada Peta Tanjungpinang</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #1a1a59;
+      color: #111;
+    }
+
+    .container {
+      width: min(1100px, 92%);
+      margin: 24px auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    h1 {
+      text-align: center;
+      margin: 0 0 20px;
+      font-size: 28px;
+    }
+
+    .form {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
+    select {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid #cfcfcf;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    button {
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 15px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .results {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .result-card {
+      padding: 16px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+    }
+
+    .result-card h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .blue {
+      border-left: 6px solid #2563eb;
+    }
+
+    .red {
+      border-left: 6px solid #dc2626;
+    }
+
+    .green {
+      border-left: 6px solid #16a34a;
+    }
+
+    #map {
+      height: 540px;
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid #ddd;
+      overflow: hidden;
+    }
+
+    .note {
+      margin-top: 12px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    @media (max-width: 720px) {
+      .buttons {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      #map {
+        height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Implementasi BFS dan DFS pada Peta Tanjungpinang</h1>
+
+    <div class="form">
+      <div class="field">
+        <label for="start">Lokasi Awal</label>
+        <select id="start" required>
+          <option value="">-- pilih lokasi awal --</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="goal">Lokasi Tujuan</label>
+        <select id="goal" required>
+          <option value="">-- pilih lokasi tujuan --</option>
+        </select>
+      </div>
+
+      <div class="buttons">
+        <button type="button" onclick="runBFS()">Proses BFS</button>
+        <button type="button" onclick="runDFS()">Proses DFS</button>
+        <button type="button" onclick="runCompare()">Bandingkan Keduanya</button>
+      </div>
+    </div>
+
+    <div class="results">
+      <div id="resultBFS" class="result-card blue" style="display:none;"></div>
+      <div id="resultDFS" class="result-card red" style="display:none;"></div>
+      <div id="resultCompare" class="result-card green" style="display:none;"></div>
+    </div>
+
+    <div id="map"></div>
+    <div class="note">Rute BFS digambar biru, rute DFS merah putus-putus.</div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <script>
+    // Graf berbobot
+    const graph = {
+      "Batu 10": {"RSUP": 2, "Batu 8": 3},
+      "RSUP": {"Batu 10": 2, "Kampung Bugis": 4},
+      "Batu 8": {"Batu 10": 3, "Kota Piring": 2},
+      "Kampung Bugis": {"RSUP": 4, "Senggarang": 3},
+      "Kota Piring": {"Batu 8": 2, "Senggarang": 5},
+      "Senggarang": {"Kampung Bugis": 3, "Kota Piring": 5}
+    };
+
+    // Koordinat titik
+    const coords = {
+      "Batu 10": [0.9200411, 104.5120340],
+      "RSUP": [0.9241577, 104.5000892],
+      "Batu 8": [0.90031, 104.48648],
+      "Kampung Bugis": [0.9551846, 104.4707004],
+      "Kota Piring": [0.9173611, 104.4852806],
+      "Senggarang": [0.9614345, 104.4310834]
+    };
+
+    const mapCenter = [0.91683, 104.44329];
+
+    const startSelect = document.getElementById("start");
+    const goalSelect = document.getElementById("goal");
+
+    Object.keys(graph).forEach(node => {
+      const opt1 = document.createElement("option");
+      opt1.value = node;
+      opt1.textContent = node;
+      startSelect.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = node;
+      opt2.textContent = node;
+      goalSelect.appendChild(opt2);
+    });
+
+    const map = L.map("map").setView(mapCenter, 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
+
+    Object.entries(coords).forEach(([name, coord]) => {
+      L.marker(coord).addTo(map).bindPopup(name);
+    });
+
+    let bfsLine = null;
+    let dfsLine = null;
+
+    function pathCost(path) {
+      let total = 0;
+      for (let i = 0; i < path.length - 1; i++) {
+        total += graph[path[i]][path[i + 1]];
+      }
+      return total;
+    }
+
+    function bfs(start, goal) {
+      if (start === goal) return [start];
+
+      const queue = [[start]];
+      const visited = new Set([start]);
+
+      while (queue.length > 0) {
+        const path = queue.shift();
+        const node = path[path.length - 1];
+
+        if (node === goal) return path;
+
+        for (const neighbor in graph[node]) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push([...path, neighbor]);
+          }
+        }
+      }
+      return null;
+    }
+
+    function dfs(start, goal) {
+      if (start === goal) return [start];
+
+      const stack = [[start]];
+      const visited = new Set();
+
+      while (stack.length > 0) {
+        const path = stack.pop();
+        const node = path[path.length - 1];
+
+        if (node === goal) return path;
+
+        if (visited.has(node)) continue;
+        visited.add(node);
+
+        const neighbors = Object.keys(graph[node]).reverse();
+        for (const neighbor of neighbors) {
+          if (!visited.has(neighbor)) {
+            stack.push([...path, neighbor]);
+          }
+        }
+      }
+      return null;
+    }
+
+    function clearLines() {
+      if (bfsLine) {
+        map.removeLayer(bfsLine);
+        bfsLine = null;
+      }
+      if (dfsLine) {
+        map.removeLayer(dfsLine);
+        dfsLine = null;
+      }
+    }
+
+    function drawPath(path, type) {
+      if (!path || path.length < 2) return null;
+
+      const latlngs = path.map(node => coords[node]);
+      const line = L.polyline(latlngs, {
+        color: type === "bfs" ? "blue" : "red",
+        weight: 5,
+        opacity: 0.9,
+        dashArray: type === "dfs" ? "8 8" : null
+      }).addTo(map);
+
+      return line;
+    }
+
+    function showResult(elementId, title, path, total) {
+      const el = document.getElementById(elementId);
+      el.style.display = "block";
+
+      if (!path) {
+        el.innerHTML = `<h2>${title}</h2><p>Rute tidak ditemukan.</p>`;
+        return;
+      }
+
+      el.innerHTML = `
+        <h2>${title}</h2>
+        <p><strong>Rute:</strong> ${path.join(" → ")}</p>
+        <p><strong>Total Bobot:</strong> ${total} km</p>
+      `;
+    }
+
+    function hideAllResults() {
+      document.getElementById("resultBFS").style.display = "none";
+      document.getElementById("resultDFS").style.display = "none";
+      document.getElementById("resultCompare").style.display = "none";
+    }
+
+    function validateInput() {
+      const start = startSelect.value;
+      const goal = goalSelect.value;
+
+      if (!start || !goal) {
+        alert("Silakan pilih lokasi awal dan tujuan terlebih dahulu.");
+        return null;
+      }
+
+      return { start, goal };
+    }
+
+    function fitMapToVisibleLines() {
+      const bounds = [];
+
+      Object.values(coords).forEach(c => bounds.push(c));
+      if (bfsLine) bounds.push(...bfsLine.getLatLngs().map(x => [x.lat, x.lng]));
+      if (dfsLine) bounds.push(...dfsLine.getLatLngs().map(x => [x.lat, x.lng]));
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      }
+    }
+
+    function runBFS() {
+      const data = validateInput();
+      if (!data) return;
+
+      hideAllResults();
+      clearLines();
+
+      const path = bfs(data.start, data.goal);
+      if (path) {
+        const total = pathCost(path);
+        bfsLine = drawPath(path, "bfs");
+        showResult("resultBFS", "Hasil BFS", path, total);
+        fitMapToVisibleLines();
+      } else {
+        showResult("resultBFS", "Hasil BFS", null, 0);
+      }
+    }
+
+    function runDFS() {
+      const data = validateInput();
+      if (!data) return;
+
+      hideAllResults();
+      clearLines();
+
+      const path = dfs(data.start, data.goal);
+      if (path) {
+        const total = pathCost(path);
+        dfsLine = drawPath(path, "dfs");
+        showResult("resultDFS", "Hasil DFS", path, total);
+        fitMapToVisibleLines();
+      } else {
+        showResult("resultDFS", "Hasil DFS", null, 0);
+      }
+    }
+
+    function runCompare() {
+      const data = validateInput();
+      if (!data) return;
+
+      hideAllResults();
+      clearLines();
+
+      const bfsPath = bfs(data.start, data.goal);
+      const dfsPath = dfs(data.start, data.goal);
+
+      let compareHtml = `<h2>Hasil Perbandingan</h2>`;
+
+      if (bfsPath) {
+        const bfsCost = pathCost(bfsPath);
+        compareHtml += `<p><strong>BFS:</strong> ${bfsPath.join(" → ")} | ${bfsCost} km</p>`;
+        bfsLine = drawPath(bfsPath, "bfs");
+      } else {
+        compareHtml += `<p><strong>BFS:</strong> Rute tidak ditemukan</p>`;
+      }
+
+      if (dfsPath) {
+        const dfsCost = pathCost(dfsPath);
+        compareHtml += `<p><strong>DFS:</strong> ${dfsPath.join(" → ")} | ${dfsCost} km</p>`;
+        dfsLine = drawPath(dfsPath, "dfs");
+      } else {
+        compareHtml += `<p><strong>DFS:</strong> Rute tidak ditemukan</p>`;
+      }
+
+      document.getElementById("resultCompare").style.display = "block";
+      document.getElementById("resultCompare").innerHTML = compareHtml;
+      fitMapToVisibleLines();
+    }
+  </script>
+</body>
+</html>
